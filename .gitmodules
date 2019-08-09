@@ -1,0 +1,3 @@
+[submodule "cpoll-ng"]
+	path = cpoll-ng
+	url = https://github.com/xaxaxa/cpoll-ng.git

@@ -1,0 +1,6 @@
+*.o
+*.so
+autom4te.cache/*
+config.*
+Makefile
+examples/Makefile
