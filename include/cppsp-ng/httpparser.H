@@ -144,6 +144,11 @@ namespace cppsp
 		}
 		// look for a usable http request in the buffer
 		bool readRequest() {
+			int curRequestSize = bufferEnd - bufferBegin;
+			if(curRequestSize >= MAXREQUESTSIZE) {
+				malformed = true;
+				return true;
+			}
 			if(state == READHEADERS) {
 				while(bufferProcessed < bufferEnd) {
 					// continue searching for crlf from where we left off last time
