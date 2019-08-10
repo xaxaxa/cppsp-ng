@@ -66,12 +66,6 @@ namespace cppsp {
 		headersBuffer.resize(Response_headersBufferInitialSpace);
 		buffer.clear();
 	}
-	void Response::write(string_view s) {
-		buffer.append(s);
-	}
-	void Response::write(const char* s) {
-		buffer.append(s);
-	}
 	int Response::write(int i) {
 		char tmp[12];
 		int ret = snprintf(tmp, 12, "%d", i);

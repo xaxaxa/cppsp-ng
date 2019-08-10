@@ -33,7 +33,7 @@ namespace cppsp {
 		// returns the number of request headers
 		int headerCount() { return headers.size(); }
 
-		// returns the number of request headers
+		// returns the number of querystrings
 		int queryStringCount() { return queryStrings.size(); }
 
 		// get a header by index
@@ -58,8 +58,8 @@ namespace cppsp {
 		bool keepAlive;
 
 		void reset();
-		void write(string_view s);
-		void write(const char* s);
+		void write(string_view s) { buffer.append(s); }
+		void write(const char* s) { buffer.append(s); }
 		int write(int i);
 
 		// s should include crlf
