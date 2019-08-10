@@ -53,7 +53,11 @@ namespace cppsp {
 	public:
 		string headersBuffer;
 		string buffer;
+		const char* status;
+		const char* contentType;
+		bool keepAlive;
 
+		void reset();
 		void write(string_view s);
 		void write(const char* s);
 		int write(int i);
@@ -61,8 +65,13 @@ namespace cppsp {
 		// s should include crlf
 		void addHeader(string_view s);
 
-		// adds a content-length response header
+		// adds a content-length response header and trailing \r\n\r\n
 		void addContentLengthHeader(int64_t length);
+
+		// prepares and returns the final http headers for transmission;
+		// returns nullptr if the pre-headers (status and content-type)
+		// do not fit in the preallocated space.
+		string_view composeHeaders(int64_t contentLength, string_view date);
 
 		template<class... P>
 		int writeF(const char* fmt, P&&... p) {
@@ -126,12 +135,8 @@ namespace cppsp {
 			return new (scratchArea) T(forward<P>(p)...);
 		}
 
-		// generate default headers
-		void resetHeaders();
-
-		// generate default headers with these parameters
-		void resetHeaders(string_view status, string_view contentType = "text/html; charset=UTF-8");
-
+		// prepares and returns the final http headers for transmission
+		string_view composeHeaders();
 
 		// called by the user application's request handler after
 		// it has finished processing a request.

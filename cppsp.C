@@ -50,7 +50,20 @@ namespace cppsp {
 			request.keepAlive = false;
 	}
 
+	const char* Response_defaultStatus = "200 OK";
+	const char* Response_defaultContentType = "text/html; charset=UTF-8";
 
+	// the number of bytes of free space to leave at the beginning of the
+	// response headers buffer; this is used to fill in the status and
+	// content type later.
+	int Response_headersBufferInitialSpace = 160;
+
+	void Response::reset() {
+		status = Response_defaultStatus;
+		contentType = Response_defaultContentType;
+		headersBuffer.resize(Response_headersBufferInitialSpace);
+		buffer.clear();
+	}
 	void Response::write(string_view s) {
 		buffer.append(s);
 	}
@@ -79,6 +92,53 @@ namespace cppsp {
 		s[2] = '\r';
 		s[3] = '\n';
 		h.resize(s + 4 - h.data());
+	}
+	// fill in fixed headers
+	string_view Response::composeHeaders(int64_t contentLength, string_view date) {
+		addHeader(date);
+		addContentLengthHeader(contentLength);
+		if(status == Response_defaultStatus
+			&& contentType == Response_defaultContentType) {
+			int sp, len;
+			if(keepAlive) {
+				len = 17 + 24 + 40;
+				sp = Response_headersBufferInitialSpace - len;
+				memcpy(headersBuffer.data() + sp,
+					"HTTP/1.1 200 OK\r\n"
+					"Connection: keep-alive\r\n"
+					"Content-Type: text/html; charset=UTF-8\r\n", len);
+			} else {
+				len = 17 + 19 + 40;
+				sp = Response_headersBufferInitialSpace - len;
+				memcpy(headersBuffer.data() + sp,
+					"HTTP/1.1 200 OK\r\n"
+					"Connection: close\r\n"
+					"Content-Type: text/html; charset=UTF-8\r\n", len);
+			}
+			return {headersBuffer.data() + sp, headersBuffer.length() - sp};
+		}
+		int statusLen = strlen(status);
+		int ctLen = strlen(contentType);
+
+		int totalLen = 9 + statusLen + 2
+					+ (keepAlive ? 24 : 19)
+					+ 14 + ctLen + 2;
+		if(totalLen > Response_headersBufferInitialSpace)
+			return string_view();
+
+		int sp = Response_headersBufferInitialSpace - totalLen;
+		char* s = headersBuffer.data() + sp;
+		memcpy(s, "HTTP/1.1 ", 9);											s += 9;
+		memcpy(s, status, statusLen);										s += statusLen;
+		if(keepAlive) {
+			memcpy(s, "\r\nConnection: keep-alive\r\nContent-Type: ", 40);	s += 40;
+		} else {
+			memcpy(s, "\r\nConnection: close\r\nContent-Type: ", 35);		s += 35;
+		}
+		memcpy(s, contentType, ctLen);										s += ctLen;
+		s[0] = '\r';
+		s[1] = '\n';
+		return {headersBuffer.data() + sp, headersBuffer.length() - sp};
 	}
 
 
@@ -161,18 +221,19 @@ namespace cppsp {
 			request.path = path.substr(0, que);
 		}
 		void processRequest() {
-			response.buffer.clear();
+			response.reset();
+			response.keepAlive = request.keepAlive;
 			stringPool.clear();
 			if(parser.malformed) {
 				request.keepAlive = false;
 				response.buffer += "Malformed request";
-				resetHeaders("400 Bad Request", "text/plain");
+				response.status = "400 Bad Request";
+				response.contentType = "text/plain";
 				finish(true);
 				return;
 			}
 			copyRequest(parser, request);
 			parseQueryString();
-			resetHeaders();
 			//fprintf(stderr, "processRequest\n");
 			//string path(parser.path());
 			//printf("%s\n", path.c_str());
@@ -202,45 +263,17 @@ namespace cppsp {
 				handleException(ex);
 			}
 		}
-		void resetHeaders() {
-			auto& h = response.headersBuffer;
-			h.clear();
-			if(request.keepAlive) {
-				h += "HTTP/1.1 200 OK\r\n"
-					"Connection: keep-alive\r\n"
-					"Content-Type: text/html; charset=UTF-8\r\n"
-					"Date: ";
-			} else {
-				h += "HTTP/1.1 200 OK\r\n"
-					"Connection: close\r\n"
-					"Content-Type: text/html; charset=UTF-8\r\n"
-					"Date: ";
-			}
-			h += worker->date();
-		}
-		void resetHeaders(string_view status, string_view contentType) {
-			auto& h = response.headersBuffer;
-			h.clear();
-			h += "HTTP/1.1 ";
-			h += status;
-			if(request.keepAlive) {
-				h += "\r\n"
-					"Connection: keep-alive\r\n"
-					"Content-Type: ";
-			} else {
-				h += "\r\n"
-					"Connection: close\r\n"
-					"Content-Type: ";
-			}
-			h += contentType;
-			h += "\r\n";
-			h += worker->date();
-		}
+		
 		void finish(bool flushReponse) {
 			if(flushReponse) {
-				response.addContentLengthHeader(response.buffer.length());
-				iov[0].iov_base = response.headersBuffer.data();
-				iov[0].iov_len = response.headersBuffer.length();
+				auto headers = response.composeHeaders(response.buffer.length(), worker->date());
+				if(headers == nullptr) {
+					runtime_error ex("Response status or content type too large");
+					handleException(ex);
+					return;
+				}
+				iov[0].iov_base = (void*) headers.data();
+				iov[0].iov_len = headers.length();
 				iov[1].iov_base = response.buffer.data();
 				iov[1].iov_len = response.buffer.length();
 				socket.writevAll(iov, 2, [this](int r) {
@@ -253,7 +286,8 @@ namespace cppsp {
 		}
 		void handleException(exception& ex) {
 			response.buffer.clear();
-			resetHeaders("500 Server Error", "text/html");
+			response.status = "500 Server Error";
+			response.contentType = "text/html";
 			response.buffer.append("<html><head><title>Server error</title></head>\n");
 			response.buffer.append("<body><h1 style=\"color: #aa1111\">Server error</h1><hr />"
 					"<h2 style=\"color: #444\">");
@@ -288,14 +322,6 @@ namespace cppsp {
 	void ConnectionHandler::start(int clientfd) {
 		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;
 		th->start(clientfd);
-	}
-	void ConnectionHandler::resetHeaders() {
-		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;
-		th->resetHeaders();
-	}
-	void ConnectionHandler::resetHeaders(string_view status, string_view contentType) {
-		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;
-		th->resetHeaders(status, contentType);
 	}
 	void ConnectionHandler::finish(bool flushReponse) {
 		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;
