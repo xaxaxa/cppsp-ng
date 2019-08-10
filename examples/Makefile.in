@@ -1,7 +1,7 @@
 CPOLL_DIR := ../cpoll-ng
 CPPSP_DIR := ..
 
-CXX = @CXX@ @CXXFLAGS@ -I$(CPOLL_DIR)/include -I../include --std=c++17 -fPIC -fwrapv -fno-delete-null-pointer-checks -funsigned-char -fno-strict-aliasing -Wno-pmf-conversions -Iinclude
+CXX = @CXX@ @CXXFLAGS@ -I$(CPOLL_DIR)/include -I../include --std=c++17 -fPIC -fwrapv -fno-delete-null-pointer-checks -funsigned-char -Iinclude
 LDFLAGS := @LDFLAGS@ -lpthread
 
 
@@ -13,12 +13,15 @@ $(CPOLL_DIR)/libcpoll-ng.so: FORCE
 $(CPPSP_DIR)/libcppsp-ng.so: FORCE
 	$(MAKE) -C $(CPPSP_DIR) libcppsp-ng.so
 
+$(CPPSP_DIR)/libcppsp-ng.a: FORCE
+	$(MAKE) -C $(CPPSP_DIR) libcppsp-ng.a
+
 FORCE:
 
 %.o: %.C
 	$(CXX) -c $(CC_FLAGS) $< -o $@
 
-test1: test1.o $(CPOLL_DIR)/libcpoll-ng.so $(CPPSP_DIR)/libcppsp-ng.so
+test1: test1.o $(CPPSP_DIR)/libcppsp-ng.a
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
 

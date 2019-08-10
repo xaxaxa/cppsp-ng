@@ -23,6 +23,8 @@
 #include <cppsp-ng/split.H>
 #include <stdarg.h>
 #include <assert.h>
+#include <math.h>
+
 using namespace CP;
 namespace cppsp
 {

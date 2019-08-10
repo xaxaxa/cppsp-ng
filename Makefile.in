@@ -1,23 +1,29 @@
 CPOLL_DIR := cpoll-ng
 
-CXX = @CXX@ @CXXFLAGS@ -I$(CPOLL_DIR)/include -Iinclude --std=c++17 -fPIC -fwrapv -fno-delete-null-pointer-checks -funsigned-char -fno-strict-aliasing -Wno-pmf-conversions -Iinclude
+CXX = @CXX@ @CXXFLAGS@ -I$(CPOLL_DIR)/include -Iinclude --std=c++17 -fPIC -fwrapv -fno-delete-null-pointer-checks -funsigned-char -Iinclude
 LDFLAGS := @LDFLAGS@ -lpthread
 INSTALL_LIBDIR = @prefix@@libdir@
 INSTALL_INCLUDEDIR = @prefix@@includedir@
 
 
-all: libcppsp-ng.so
+all: libcppsp-ng.so libcppsp-ng.a
 
 $(CPOLL_DIR)/libcpoll-ng.so: FORCE
 	$(MAKE) -C $(CPOLL_DIR) libcpoll-ng.so
+
+$(CPOLL_DIR)/libcpoll-ng.a: FORCE
+	$(MAKE) -C $(CPOLL_DIR) libcpoll-ng.a
 
 FORCE:
 
 %.o: %.C
 	$(CXX) -c $(CC_FLAGS) $< -o $@
 
-libcppsp-ng.so: cppsp.o static_handler.o stringutils.o
+libcppsp-ng.so: cppsp.o static_handler.o stringutils.o route_cache.o $(CPOLL_DIR)/libcpoll-ng.so
 	$(CXX) -o $@ --shared $^ $(LDFLAGS)
+
+libcppsp-ng.a: cppsp.o static_handler.o stringutils.o route_cache.o $(CPOLL_DIR)/libcpoll-ng.a
+	ar rcsT $@ $^
 
 install: libcppsp-ng.so
 	# headers
@@ -27,4 +33,4 @@ install: libcppsp-ng.so
 	install -s libcpoll-ng.so $(INSTALL_LIBDIR)/
 
 clean:
-	rm -f *.so *.o
+	rm -f *.so *.o *.a

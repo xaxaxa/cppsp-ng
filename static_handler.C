@@ -3,6 +3,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <fcntl.h>
+
 
 using namespace std;
 using namespace CP;
@@ -14,6 +16,7 @@ namespace cppsp {
 		LoadedStaticFile* prev;
 		StaticFileManager* manager;
 		string path;
+		string mimeType;
 		uint8_t* mapped;
 		int fd;
 		int length;
@@ -21,6 +24,9 @@ namespace cppsp {
 	};
 	struct FileRef {
 		LoadedStaticFile* file;
+
+		// if refcount becomes 0, put the file on the to-free list;
+		// if refcount becomes nonzero, remove the file from the to-free list.
 
 		FileRef(LoadedStaticFile* file):file(file) {
 			if(file->refCount == 0)
@@ -46,6 +52,7 @@ namespace cppsp {
 		StaticFileHandler(ConnectionHandler& ch, LoadedStaticFile* file)
 			: ch(ch), file(file) { }
 		void start() {
+			file->manager->requestsCounter++;
 			auto& response = ch.response;
 			response.addContentLengthHeader(file->length);
 			// if we have the file mmap'd, we can use writev to send the
@@ -95,7 +102,22 @@ namespace cppsp {
 	HandleRequestCB StaticFileManager::createHandler(string_view file) {
 		return createHandler(getFile(file));
 	}
-	
+
+	void StaticFileManager::timerCB() {
+		if(loadsCounter*targetCacheHitRatio <= requestsCounter) {
+			capacity -= capacity/8;
+			if(capacity < minCapacity)
+				capacity = minCapacity;
+			//else fprintf(stderr, "static file cache capacity: %d\n", capacity);
+			for(int i=0; i<maxPurgePerCycle; i++) {
+				if(cache.size() <= capacity)
+					break;
+				pop();
+			}
+		}
+		loadsCounter = requestsCounter = 0;
+	}
+
 	HandleRequestCB StaticFileManager::createHandler(LoadedStaticFile* file) {
 		// the lambda retains a reference to file
 		auto handler = [ref = FileRef(file)]
@@ -111,11 +133,25 @@ namespace cppsp {
 	}
 	LoadedStaticFile* StaticFileManager::getFile(string_view file) {
 		// TODO: remove this cast to string once we switch to c++20
+		// (to save an unnecessary heap allocation)
 		string key(file);
 		auto it = cache.find(key);
 		if(it == cache.end()) {
 			auto* f = loadFile(file);
 			cache[key] = f;
+			// we've added an item to the cache;
+			// if we exceeded capacity then also remove an item from the cache.
+			if(cache.size() > capacity)
+				pop();
+
+			// if in the last adjustment cycle we evicted more than half
+			// of the cache, consider increasing capacity
+			if(loadsCounter*2 > capacity) {
+				// if we are getting a lot of cache misses then quickly ramp up capacity
+				// without waiting for the timer callback to respond
+				if(loadsCounter*targetCacheHitRatio > requestsCounter)
+					capacity += capacity/8;
+			}
 			return f;
 		}
 		return (*it).second;
@@ -152,6 +188,10 @@ namespace cppsp {
 		f->length = st.st_size;
 		f->mapped = (uint8_t*) mapped;
 		f->fd = fd;
+
+		// only increment the counter after the file is loaded because
+		// we don't want errors to count towards the load rate.
+		loadsCounter++;
 		return f;
 	}
 	// put the file on the to-free list
@@ -177,5 +217,16 @@ namespace cppsp {
 			file->prev->next = file->next;
 		if(file->next)
 			file->next->prev = file->prev;
+	}
+	void StaticFileManager::pop() {
+		LoadedStaticFile* toFree = firstToFree;
+		if(toFree == nullptr)
+			return;
+		retain(toFree);
+
+		// if it's on the to-free list it has refcount 0; we can delete it
+		assert(toFree->refCount == 0);
+		cache.erase(toFree->path);
+		delete toFree;
 	}
 }

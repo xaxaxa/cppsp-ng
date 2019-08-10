@@ -12,17 +12,19 @@ namespace cppsp {
 	static constexpr int HANDLER_MEM_POOL = 1024;
 
 	class ConnectionHandler;
+	class RouteCache;
 
 	// application callbacks
 
 	// called by a worker to process one http request; after the user
 	// is done with the request it should call ch.finish().
 	typedef function<void(ConnectionHandler& ch)> HandleRequestCB;
-	typedef function<HandleRequestCB(const string_view& path)> RouteRequestCB;
+	typedef function<HandleRequestCB(string_view host, string_view path)> RouteRequestCB;
 
 	class Request {
 	public:
 		string_view method;
+		string_view host;
 		string_view path;
 		vector<pair<string_view, string_view> > headers;
 		bool keepAlive;
@@ -86,8 +88,10 @@ namespace cppsp {
 		string_view date() { return currDate; }
 		void connectionClosedCB(ConnectionHandler* ch);
 
-	protected:
+		// internal functions
+	public:
 		void* handlerPool;
+		RouteCache* routeCache;
 		string currDate;
 	};
 

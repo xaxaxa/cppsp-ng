@@ -9,18 +9,6 @@ using namespace CP;
 using namespace cppsp;
 
 
-void* threadFunc(void* v) {
-	auto* func = (function<void()>*)v;
-	(*func)();
-	delete func;
-	return nullptr;
-}
-void createThread(const function<void()>& func) {
-	auto* funcCopy = new function<void()>(func);
-	pthread_t pth;
-	assert(pthread_create(&pth, nullptr, &threadFunc, funcCopy) >= 0);
-}
-
 struct MyHandler {
 	ConnectionHandler& ch;
 	MyHandler(ConnectionHandler& ch): ch(ch) {}
@@ -39,6 +27,8 @@ struct MyHandler {
 	}
 };
 
+// given a type and a member function, create a handler that
+// will instantiate the type and call the member function.
 template<class T, void (T::*FUNC)()>
 HandleRequestCB createMyHandler() {
 	return [](ConnectionHandler& ch) {
@@ -50,12 +40,14 @@ HandleRequestCB createMyHandler() {
 
 void runWorker(Worker& worker, Socket& srvsock) {
 	StaticFileManager sfm(".");
-	auto router = [&](string_view path) {
-		//string tmp(path);
-		//printf("%s\n", tmp.c_str());
+
+	// request router; given a http path return a HandleRequestCB
+	auto router = [&](string_view host, string_view path) {
+		string tmp(path);
+		printf("%s\n", tmp.c_str());
 		if(path.compare("/ping") == 0)
 			return createMyHandler<MyHandler, &MyHandler::handlePing>();
-		if(path.compare("/100.html") == 0)
+		if(path.compare("/100") == 0)
 			return createMyHandler<MyHandler, &MyHandler::handleHome>();
 		return sfm.createHandler(path);
 	};
@@ -65,6 +57,7 @@ void runWorker(Worker& worker, Socket& srvsock) {
 	Timer timer((uint64_t) 1000);
 	timer.setCallback([&](int r) {
 		worker.timerCB();
+		sfm.timerCB();
 	});
 	worker.epoll.add(timer);
 	worker.loop();
@@ -80,7 +73,7 @@ int main(int argc, char** argv)
 	srvsock.bind(argv[1], argv[2]);
 	srvsock.listen();
 
-	int nThreads = 1;
+	int nThreads = 8;
 
 	for(int i=1; i<nThreads; i++) {
 		createThread([argv]() {

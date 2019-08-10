@@ -1,7 +1,9 @@
 #include <cppsp-ng/cppsp.H>
 #include <cppsp-ng/httpparser.H>
 #include <cppsp-ng/stringutils.H>
+#include <cppsp-ng/route_cache.H>
 #include <unistd.h>
+#include <math.h>
 
 namespace cppsp {
 	static inline int itoa64(int64_t i, char* b) {
@@ -27,6 +29,7 @@ namespace cppsp {
 	}
 	void copyRequestHeaders(HTTPParser& parser, Request& request) {
 		request.keepAlive = true;
+		request.host = parser.host();
 		request.path = parser.path();
 		request.method = parser.verb();
 		request.headers.resize(parser.headers.size());
@@ -134,12 +137,26 @@ namespace cppsp {
 			copyRequestHeaders(parser, request);
 			resetHeaders();
 			//fprintf(stderr, "processRequest\n");
-			string path(parser.path());
+			//string path(parser.path());
 			//printf("%s\n", path.c_str());
 
 			try {
+				int len1 = request.host.length();
+				int len2 = request.path.length();
+				char k[len1 + len2 + 1];
+				memcpy(k, request.host.data(), len1);
+				memcpy(k+len1+1, request.path.data(), len2);
+				k[len1] = '#';
+				string_view key(k, len1 + len2 + 1);
+
+				auto* cachedHandler = worker->routeCache->find(key);
+				if(cachedHandler != nullptr) {
+					(*cachedHandler)(*this);
+					return;
+				}
 				if(worker->router != nullptr) {
-					auto handler = worker->router(request.path);
+					auto handler = worker->router(request.host, request.path);
+					worker->routeCache->insert(key, handler);
 					handler(*this);
 				} else {
 					worker->handler(*this);
@@ -255,11 +272,13 @@ namespace cppsp {
 	typedef ObjectPool<ConnectionHandlerInternal> HandlerPool;
 	Worker::Worker() {
 		handlerPool = new HandlerPool();
+		routeCache = new RouteCache();
 		timerCB();
 	}
 	Worker::~Worker() {
 		HandlerPool* hp = (HandlerPool*) handlerPool;
 		delete hp;
+		delete routeCache;
 	}
 	void Worker::addListenSocket(Socket& sock) {
 		epoll.add(sock);
@@ -281,7 +300,6 @@ namespace cppsp {
 	void Worker::timerCB() {
 		currDate.clear();
 		currDate += "Date: ";
-
 		
 		//currDate.resize(50);
 		time_t t;

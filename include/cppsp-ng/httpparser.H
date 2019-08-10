@@ -43,6 +43,7 @@ namespace cppsp
 
 		int requestLineStart, requestLineEnd;
 		int verbStart, verbEnd;
+		int hostStart, hostEnd;
 		int pathStart, pathEnd;
 		vector<tuple<int,int,int,int> > headers;
 
@@ -65,6 +66,9 @@ namespace cppsp
 		}
 		string_view verb() {
 			return slice(bufferBegin + verbStart, bufferBegin + verbEnd);
+		}
+		string_view host() {
+			return slice(bufferBegin + hostStart, bufferBegin + hostEnd);
 		}
 		string_view path() {
 			return slice(bufferBegin + pathStart, bufferBegin + pathEnd);
@@ -99,6 +103,7 @@ namespace cppsp
 			currContentLength = 0;
 			requestLineStart = requestLineEnd = -1;
 			verbStart = verbEnd = -1;
+			hostStart = hostEnd = -1;
 			pathStart = pathEnd = -1;
 			bufferBegin = bufferProcessed;
 			headers.clear();
@@ -241,6 +246,10 @@ namespace cppsp
 				if(ci_equals(name, "content-length")) {
 					buffer[vE] = 0;
 					currContentLength = atoi(&buffer[vS]);
+				}
+				if(ci_equals(name, "host")) {
+					hostStart = vS;
+					hostEnd = vE;
 				}
 				headers.push_back({nS - bufferBegin, nE - bufferBegin,
 									vS - bufferBegin, vE - bufferBegin});
