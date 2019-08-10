@@ -127,6 +127,7 @@ namespace cppsp
 		while (spl.read()) {
 			const char* start = spl.value.data();
 			int len = spl.value.length();
+			if(len == 0) continue;
 			const char* end = start + len;
 			const char* equ = (const char*) memchr(start, '=', len);
 
@@ -140,7 +141,7 @@ namespace cppsp
 				int nS = outBuffer.length();
 				urlDecode(start, equ - start, outBuffer);
 				int nE = outBuffer.length();
-				int vS = nE + 1;
+				int vS = nE;
 				urlDecode(equ + 1, end - equ - 1, outBuffer);
 				int vE = outBuffer.length();
 				outIndices.push_back({nS, nE, vS, vE});

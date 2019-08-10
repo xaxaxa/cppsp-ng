@@ -27,7 +27,15 @@ namespace cppsp {
 		}
 		return string_view();
 	}
-	void copyRequestHeaders(HTTPParser& parser, Request& request) {
+	string_view Request::queryString(string_view name) {
+		int n = queryStringCount();
+		for(int i=0; i<n; i++) {
+			if(get<0>(queryStrings[i]) == name)
+				return get<1>(queryStrings[i]);
+		}
+		return string_view();
+	}
+	void copyRequest(HTTPParser& parser, Request& request) {
 		request.keepAlive = true;
 		request.host = parser.host();
 		request.path = parser.path();
@@ -93,6 +101,8 @@ namespace cppsp {
 	class ConnectionHandlerInternal: public ConnectionHandler {
 	public:
 		HTTPParser parser;
+		string stringPool;
+		vector<tuple<int,int,int,int> > qsIndices;
 		iovec iov[2];
 		void start(int clientfd) {
 			//fprintf(stderr, "NEW CONNECTION\n");
@@ -125,8 +135,34 @@ namespace cppsp {
 				startRead();
 			}
 		}
+		void parseQueryString() {
+			request.queryStrings.clear();
+			string_view path = request.path;
+
+			int que = path.find('?');
+			if(que == string_view::npos)
+				return;
+
+			const char* qsStart = path.data() + que + 1;
+			int qsLen = path.length() - que - 1;
+			cppsp::parseQueryString(qsStart, qsLen, stringPool, qsIndices);
+
+			request.queryStrings.resize(qsIndices.size());
+			auto it2 = request.queryStrings.begin();
+			const char* spStart = stringPool.data();
+			for(auto& item: qsIndices) {
+				int nS = get<0>(item), nE = get<1>(item);
+				int vS = get<2>(item), vE = get<3>(item);
+				*it2 = {string_view(spStart + nS, nE - nS),
+						string_view(spStart + vS, vE - vS)};
+				it2++;
+			}
+			qsIndices.clear();
+			request.path = path.substr(0, que);
+		}
 		void processRequest() {
 			response.buffer.clear();
+			stringPool.clear();
 			if(parser.malformed) {
 				request.keepAlive = false;
 				response.buffer += "Malformed request";
@@ -134,7 +170,8 @@ namespace cppsp {
 				finish(true);
 				return;
 			}
-			copyRequestHeaders(parser, request);
+			copyRequest(parser, request);
+			parseQueryString();
 			resetHeaders();
 			//fprintf(stderr, "processRequest\n");
 			//string path(parser.path());

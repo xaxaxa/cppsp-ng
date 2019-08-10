@@ -1,6 +1,7 @@
 #include <cpoll-ng/cpoll.H>
 #include <cppsp-ng/cppsp.H>
 #include <cppsp-ng/static_handler.H>
+#include <cppsp-ng/stringutils.H>
 #include <iostream>
 #include <signal.h>
 #include <assert.h>
@@ -19,6 +20,21 @@ struct MyHandler {
 	void handlePing() {
 		ch.response.write("PONG");
 		ch.response.addHeader("Server: fuck-you\r\n");
+		finish(true);
+	}
+	void handleQs() {
+		string& out = ch.response.buffer;
+		out += "<pre>querystrings:\n";
+		int qsCount = ch.request.queryStringCount();
+		for(int i=0; i<qsCount; i++) {
+			string_view name, value;
+			tie(name, value) = ch.request.queryString(i);
+			htmlEscape(name, out);
+			out += ": ";
+			htmlEscape(value, out);
+			out += '\n';
+		}
+		out += "</pre>";
 		finish(true);
 	}
 	void finish(bool flush) {
@@ -49,6 +65,8 @@ void runWorker(Worker& worker, Socket& srvsock) {
 			return createMyHandler<MyHandler, &MyHandler::handlePing>();
 		if(path.compare("/100") == 0)
 			return createMyHandler<MyHandler, &MyHandler::handleHome>();
+		if(path.compare("/qs") == 0)
+			return createMyHandler<MyHandler, &MyHandler::handleQs>();
 		return sfm.createHandler(path);
 	};
 	worker.router = router;

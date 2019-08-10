@@ -48,6 +48,12 @@ namespace cppsp
 	inline int htmlAttributeEscape(const char* in, string& out) { return htmlAttributeEscape(in, strlen(in), out); }
 	inline int jsEscape(const char* in, string& out) { return jsEscape(in, strlen(in), out); }
 
+	inline int doURLDecode(string_view in, char* out) { return doURLDecode(in.data(), in.length(), out); }
+	inline int urlDecode(string_view in, string& out) { return urlDecode(in.data(), in.length(), out); }
+	inline int urlEncode(string_view in, string& out) { return urlEncode(in.data(), in.length(), out); }
+	inline int htmlEscape(string_view in, string& out) { return htmlEscape(in.data(), in.length(), out); }
+	inline int htmlAttributeEscape(string_view in, string& out) { return htmlAttributeEscape(in.data(), in.length(), out); }
+	inline int jsEscape(string_view in, string& out) { return jsEscape(in.data(), in.length(), out); }
 
 	int parseQueryString(const char* in, int inLen, string& outBuffer, vector<tuple<int,int,int,int> >& outIndices);
 	int ci_compare(string_view s1, string_view s2);

@@ -27,16 +27,26 @@ namespace cppsp {
 		string_view host;
 		string_view path;
 		vector<pair<string_view, string_view> > headers;
+		vector<pair<string_view, string_view> > queryStrings;
 		bool keepAlive;
 
 		// returns the number of request headers
 		int headerCount() { return headers.size(); }
 
+		// returns the number of request headers
+		int queryStringCount() { return queryStrings.size(); }
+
 		// get a header by index
 		pair<string_view, string_view> header(int i) { return headers.at(i); }
 
+		// get a querystring by index
+		pair<string_view, string_view> queryString(int i) { return queryStrings.at(i); }
+
 		// get a header by name; name must be all lowercase
 		string_view header(string_view name);
+
+		// get a querystring by name; name is case sensitive
+		string_view queryString(string_view name);
 	};
 
 	class Response {
