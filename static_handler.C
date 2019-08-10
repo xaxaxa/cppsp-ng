@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-
+#include <errno.h>
 
 using namespace std;
 using namespace CP;
@@ -148,7 +148,7 @@ namespace cppsp {
 				pop();
 			}
 		}
-		fprintf(stderr, "static file cache capacity: %d\n", capacity);
+		//fprintf(stderr, "static file cache capacity: %d\n", capacity);
 		loadsCounter = requestsCounter = 0;
 	}
 
@@ -211,7 +211,7 @@ namespace cppsp {
 			// if we are getting a lot of cache misses then quickly ramp up capacity
 			// without waiting for the timer callback to respond
 			if(loadsCounter*targetCacheHitRatio > requestsCounter) {
-				fprintf(stderr, "%d loads, %d requests\n", loadsCounter, requestsCounter);
+				//fprintf(stderr, "%d loads, %d requests\n", loadsCounter, requestsCounter);
 				capacity += capacity/8;
 			}
 			if(capacity > maxCapacity)

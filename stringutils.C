@@ -24,6 +24,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <math.h>
+#include <time.h>
 
 using namespace CP;
 namespace cppsp

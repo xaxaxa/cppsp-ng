@@ -3,7 +3,7 @@
 
 #include <cppsp-ng/cppsp.H>
 #include <functional>
-#include <map>
+#include <unordered_map>
 #include <assert.h>
 
 using namespace std;

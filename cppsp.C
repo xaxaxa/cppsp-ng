@@ -4,6 +4,8 @@
 #include <cppsp-ng/route_cache.H>
 #include <unistd.h>
 #include <math.h>
+#include <errno.h>
+#include <time.h>
 
 namespace cppsp {
 	static inline int itoa64(int64_t i, char* b) {
