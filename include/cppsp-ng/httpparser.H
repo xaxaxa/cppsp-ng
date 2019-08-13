@@ -48,6 +48,7 @@ namespace cppsp
 		int verbStart, verbEnd;
 		int hostStart, hostEnd;
 		int pathStart, pathEnd;
+		int contentsStart, contentsEnd;
 		vector<tuple<int,int,int,int> > headers;
 
 		// state variables
@@ -76,6 +77,14 @@ namespace cppsp
 		string_view path() {
 			return slice(bufferBegin + pathStart, bufferBegin + pathEnd);
 		}
+		string_view contents() {
+			// contentsStart and contentsEnd are absolute indices, not relative to bufferBegin
+			return slice(contentsStart, contentsEnd);
+		}
+		// returns all the data in the buffer after the current processed request
+		string_view remainingData() {
+			return slice(bufferProcessed, bufferEnd);
+		}
 		inline pair<string_view,string_view> header(const tuple<int,int,int,int>& item) {
 			int nS = get<0>(item), nE = get<1>(item);
 			int vS = get<2>(item), vE = get<3>(item);
@@ -92,6 +101,7 @@ namespace cppsp
 		}
 		void reset() {
 			bufferBegin = bufferEnd = bufferProcessed = 0;
+			state = READHEADERS;
 			clearRequest();
 		}
 		// returns old buffer
@@ -108,6 +118,7 @@ namespace cppsp
 			verbStart = verbEnd = -1;
 			hostStart = hostEnd = -1;
 			pathStart = pathEnd = -1;
+			contentsStart = contentsEnd = -1;
 			bufferBegin = bufferProcessed;
 			headers.clear();
 			malformed = false;
@@ -128,6 +139,7 @@ namespace cppsp
 				char* oldBuf = upsize();
 				memcpy(buffer, oldBuf + bufferBegin, curRequestSize);
 				delete[] oldBuf;
+				fprintf(stderr, "http parser upsize\n");
 			} else if(bufferBegin > 0) {
 				// if the partial request is not at the beginning, move it
 				// to the beginning
@@ -179,12 +191,14 @@ namespace cppsp
 				}
 			} else { // READCONTENT
 			readContent:
-				int headerSize = bufferProcessed - bufferBegin;
 				int contentsRead = bufferEnd - bufferProcessed;
-
-				if(headerSize + currContentLength > MAXREQUESTSIZE)
-					throw runtime_error("HTTPParser: max request size exceeded");
-				return (contentsRead >= currContentLength);
+				if(contentsRead >= currContentLength) {
+					contentsStart = bufferProcessed;
+					contentsEnd = bufferProcessed + currContentLength;
+					bufferProcessed = contentsEnd;
+					state = READHEADERS;
+					return true;
+				}
 			}
 			return false;
 		}
@@ -223,9 +237,12 @@ namespace cppsp
 			end = last - buffer + 1;
 		}
 		void addHeader(int begin, int end) {
+			// if we don't have a request verb & path line yet, this line
+			// is the request line.
 			if(requestLineStart == -1) {
 				requestLineStart = begin - bufferBegin;
 				requestLineEnd = end - bufferBegin;
+				// separate out verb and path
 				int index = findChar(begin, end, ' ');
 				if(index < 0) {
 					malformed = true;
@@ -242,6 +259,7 @@ namespace cppsp
 				pathStart = index + 1 - bufferBegin;
 				pathEnd = index2 - bufferBegin;
 			} else {
+				// this line is a header; split it by ':'
 				int index = findChar(begin, end, ':');
 				if(index < 0) {
 					malformed = true;
@@ -251,13 +269,16 @@ namespace cppsp
 				trim(nS, nE);
 				trim(vS, vE);
 				string_view name = slice(nS, nE);
+
+				// these headers are always parsed; do it ahead of time
+				// while the data is still local.
 				if(ci_equals(name, "content-length")) {
 					buffer[vE] = 0;
 					currContentLength = atoi(&buffer[vS]);
 				}
 				if(ci_equals(name, "host")) {
-					hostStart = vS;
-					hostEnd = vE;
+					hostStart = vS - bufferBegin;
+					hostEnd = vE - bufferBegin;
 				}
 				headers.push_back({nS - bufferBegin, nE - bufferBegin,
 									vS - bufferBegin, vE - bufferBegin});
