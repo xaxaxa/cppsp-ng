@@ -21,7 +21,7 @@ namespace cppsp {
 		return l;
 	}
 
-	string_view Request::header(string_view name) {
+	string_view Request::header(string_view name) const {
 		int n = headerCount();
 		for(int i=0; i<n; i++) {
 			if(HTTPParser::ci_equals(get<0>(headers[i]), name))
@@ -29,7 +29,7 @@ namespace cppsp {
 		}
 		return string_view();
 	}
-	string_view Request::queryString(string_view name) {
+	string_view Request::queryString(string_view name) const {
 		int n = queryStringCount();
 		for(int i=0; i<n; i++) {
 			if(get<0>(queryStrings[i]) == name)

@@ -35,22 +35,22 @@ namespace cppsp {
 		bool keepAlive;
 
 		// returns the number of request headers
-		int headerCount() { return headers.size(); }
+		int headerCount() const { return headers.size(); }
 
 		// returns the number of querystrings
-		int queryStringCount() { return queryStrings.size(); }
+		int queryStringCount() const { return queryStrings.size(); }
 
 		// get a header by index
-		pair<string_view, string_view> header(int i) { return headers.at(i); }
+		pair<string_view, string_view> header(int i) const { return headers.at(i); }
 
 		// get a querystring by index
-		pair<string_view, string_view> queryString(int i) { return queryStrings.at(i); }
+		pair<string_view, string_view> queryString(int i) const { return queryStrings.at(i); }
 
 		// get a header by name; name must be all lowercase
-		string_view header(string_view name);
+		string_view header(string_view name) const;
 
 		// get a querystring by name; name is case sensitive
-		string_view queryString(string_view name);
+		string_view queryString(string_view name) const;
 	};
 
 	class Response {
