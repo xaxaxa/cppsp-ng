@@ -22,6 +22,7 @@
 #ifndef SPLIT_H_
 #define SPLIT_H_
 #include <string_view>
+#include <stdexcept>
 
 namespace cppsp
 {
@@ -68,7 +69,7 @@ namespace cppsp
 			const char* s1 = s;
 			if (*s == '"') {
 				s = (const char*) memchr(s + 1, '"', end - s - 1);
-				if (s == nullptr) throw invalid_argument("unterminated quote");
+				if (s == nullptr) throw std::invalid_argument("unterminated quote");
 				value = {s1+1, size_t(s-s1)-1};
 				//skip delimiter if present
 				if ((++s) < end && *s == delim) s++;

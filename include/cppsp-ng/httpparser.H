@@ -24,6 +24,9 @@
 namespace cppsp
 {
 	using namespace CP;
+	using std::tuple;
+	using std::get;
+
 	static constexpr int MAXREQUESTSIZE = 8192;
 	struct HTTPParser
 	{

@@ -5,10 +5,14 @@
 #include <functional>
 #include <assert.h>
 
-using namespace std;
 using namespace CP;
 
 namespace cppsp {
+	using std::string_view;
+	using std::string;
+	using std::vector;
+	using std::pair;
+
 	static constexpr int HANDLER_MEM_POOL = 1024;
 
 	class ConnectionHandler;
