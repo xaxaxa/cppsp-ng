@@ -76,7 +76,7 @@ namespace cppsp {
 		headersBuffer.append(s);
 	}
 	void Response::addContentLengthHeader(int64_t length) {
-		string& h = headersBuffer;
+		auto& h = headersBuffer;
 		int oldLen = h.length();
 		h.resize(h.length() + 64);
 		char* s = h.data() + oldLen;
@@ -160,6 +160,27 @@ namespace cppsp {
 		string stringPool;
 		vector<tuple<int,int,int,int> > qsIndices;
 		iovec iov[2];
+		uint8_t* scratch = nullptr;
+		int scratchSize = 0;
+
+		uint8_t* scratchArea(int minSize) {
+			if(minSize > scratchSize) {
+				if(scratch != nullptr)
+					free(scratch);
+				int sz = scratchSize;
+				if(sz < scratchAreaInitialSize)
+					sz = scratchAreaInitialSize;
+				while(sz < minSize)
+					sz *= 2;
+				scratch = (uint8_t*) malloc(sz);
+				if(!scratch) {
+					scratchSize = 0;
+					throw bad_alloc();
+				}
+				scratchSize = sz;
+			}
+			return scratch;
+		}
 		void start(int clientfd) {
 			//fprintf(stderr, "NEW CONNECTION\n");
 			parser.reset();
@@ -318,6 +339,10 @@ namespace cppsp {
 	void ConnectionHandler::start(int clientfd) {
 		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;
 		th->start(clientfd);
+	}
+	uint8_t* ConnectionHandler::scratchArea(int minSize) {
+		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;
+		return th->scratchArea(minSize);
 	}
 	void ConnectionHandler::finish(bool flushReponse) {
 		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;

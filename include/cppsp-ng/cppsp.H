@@ -121,22 +121,22 @@ namespace cppsp {
 	// this implementation is tied to Worker. Do not instantiate directly.
 	class ConnectionHandler {
 	public:
-		static constexpr int scratchAreaSize = 256;
+		static const int scratchAreaInitialSize = 256;
 		Worker* worker;
 		Socket socket;
 		Request request;
 		Response response;
-		uint8_t scratchArea[scratchAreaSize];
 
 		// called by Worker to start reading from a socket
 		void start(int clientfd);
 
 		// the ConnectionHandler provides a scratch area that you may allocate
 		// one object from per request. The scratch area is recycled for every request.
+		uint8_t* scratchArea(int minSize);
+
 		template<class T, class... P>
 		T* allocateHandlerState(P&&... p) {
-			assert(sizeof(T) <= scratchAreaSize);
-			return new (scratchArea) T(forward<P>(p)...);
+			return new (scratchArea(sizeof(T))) T(std::forward<P>(p)...);
 		}
 
 		// prepares and returns the final http headers for transmission
