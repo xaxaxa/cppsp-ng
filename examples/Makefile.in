@@ -2,10 +2,10 @@ CPOLL_DIR := ../cpoll-ng
 CPPSP_DIR := ..
 
 CXX = @CXX@ @CXXFLAGS@ -I$(CPOLL_DIR)/include -I../include --std=c++17 -fPIC -fwrapv -fno-delete-null-pointer-checks -funsigned-char -Iinclude
-LDFLAGS := @LDFLAGS@ -lpthread
+LDFLAGS := @LDFLAGS@ -lpthread @EXTRA_LIBRARIES@
 
 
-all: test1
+all: test1 ws_test
 
 $(CPOLL_DIR)/libcpoll-ng.so: FORCE
 	$(MAKE) -C $(CPOLL_DIR) libcpoll-ng.so
@@ -24,6 +24,8 @@ FORCE:
 test1: test1.o $(CPPSP_DIR)/libcppsp-ng.a
 	$(CXX) -o $@ $^ $(LDFLAGS)
 
+ws_test: ws_test.o $(CPPSP_DIR)/libcppsp-ng.a
+	$(CXX) -o $@ $^ $(LDFLAGS)
 
 clean:
-	rm -f *.o test1
+	rm -f *.o test1 ws_test
