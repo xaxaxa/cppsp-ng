@@ -328,7 +328,7 @@ namespace cppsp {
 				"H", "text/x-c++src",
 				"hpp", "text/x-c++src",
 				"hxx", "text/x-c++src"};
-			for(int i=0; i<(int)sizeof(mimes); i+=2) {
+			for(int i=0; i<(int)(sizeof(mimes)/sizeof(*mimes)); i+=2) {
 				out.insert({mimes[i], mimes[i+1]});
 			}
 			return;
@@ -336,10 +336,11 @@ namespace cppsp {
 		while (true) {
 			char* line_ = nullptr;
 			size_t n = 0;
-			getline(&line_, &n, file);
-			string_view line(line_);
-			if (line.length() <= 0)
+			if(getline(&line_, &n, file) <= 0) {
+				if(line_ != nullptr) free(line_);
 				break;
+			}
+			string_view line(line_);
 			line = line.substr(0, line.length() - 1);
 
 			int i = line.find(':');
@@ -355,7 +356,8 @@ namespace cppsp {
 				ext = ext.substr(2);
 				out.insert( { string(ext), string(line.substr(0, i)) });
 			}
-		cont:;
+		cont:
+			free(line_);
 		}
 	}
 }
