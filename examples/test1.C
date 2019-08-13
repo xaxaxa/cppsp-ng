@@ -23,7 +23,7 @@ struct MyHandler {
 		finish(true);
 	}
 	void handleQs() {
-		string& out = ch.response.buffer;
+		auto& out = ch.response.buffer;
 		out += "<pre>querystrings:\n";
 		int qsCount = ch.request.queryStringCount();
 		for(int i=0; i<qsCount; i++) {

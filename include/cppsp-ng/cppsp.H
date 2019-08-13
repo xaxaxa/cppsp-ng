@@ -1,6 +1,7 @@
 #ifndef __INCLUDED_CPPSP_H
 #define __INCLUDED_CPPSP_H
 
+#include <cpoll-ng/string_builder.H>
 #include <cpoll-ng/cpoll.H>
 #include <functional>
 #include <assert.h>
@@ -55,8 +56,8 @@ namespace cppsp {
 
 	class Response {
 	public:
-		string headersBuffer;
-		string buffer;
+		string_builder headersBuffer;
+		string_builder buffer;
 		const char* status;
 		const char* contentType;
 		bool keepAlive;
@@ -77,18 +78,10 @@ namespace cppsp {
 		// do not fit in the preallocated space.
 		string_view composeHeaders(int64_t contentLength, string_view date);
 
-		template<class... P>
+		/*template<class... P>
 		int writeF(const char* fmt, P&&... p) {
-			buffer.reserve(buffer.size() + 32);
-			int space = buffer.capacity() - buffer.size();
-			int len = snprintf(buffer.data() + buffer.size(), space, fmt, std::forward<P>(p)...);
-			// len excludes the null byte, but space includes it
-			if(len >= space) {
-				buffer.reserve(buffer.size() + len + 1);
-				return snprintf(buffer.data() + buffer.size(), len + 1, fmt, std::forward<P>(p)...);
-			}
-			return len;
-		}
+			return (int) buffer.append_format(fmt, std::forward<P>(p)...);
+		}*/
 	};
 
 	class Worker {
@@ -151,6 +144,10 @@ namespace cppsp {
 		// called by the user application's request handler to abort a connection
 		void abort();
 	};
+	
+	static inline bool operator==(const std::string_view& a, std::nullptr_t b) {
+		return a.empty();
+	}
 };
 
 #endif
