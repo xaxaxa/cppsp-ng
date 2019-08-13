@@ -27,6 +27,7 @@
 #include <time.h>
 
 using namespace CP;
+using namespace std;
 namespace cppsp
 {
 	inline char hexCharToInt(char ch) {
@@ -69,7 +70,8 @@ namespace cppsp
 		}
 		return int(c - out);
 	}
-	int urlDecode(const char* in, int inLen, string& out) {
+	template<class StringType>
+	int urlDecodeImpl(const char* in, int inLen, StringType& out) {
 		int oldLen = out.length();
 		out.resize(oldLen + inLen);
 		char* ch = out.data() + oldLen;
@@ -77,7 +79,9 @@ namespace cppsp
 		out.resize(oldLen + len);
 		return len;
 	}
-	int urlEncode(const char* in, int inLen, string& out) {
+
+	template<class StringType>
+	int urlEncodeImpl(const char* in, int inLen, StringType& out) {
 		int last_i = 0;
 		const char* c = in;
 		char ch[3];
@@ -99,59 +103,9 @@ namespace cppsp
 		if (inLen > last_i) out.append(in + last_i, inLen - last_i);
 		return inLen + asdf;
 	}
-	std::string urlDecode(const char* in, int inLen) {
-		string ret;
-		urlDecode(in, inLen, ret);
-		return ret;
-	}
-	std::string urlEncode(const char* in, int inLen) {
-		string ret;
-		urlEncode(in, inLen, ret);
-		return ret;
-	}
-	std::string htmlEscape(const char* in, int inLen) {
-		string ret;
-		htmlEscape(in, inLen, ret);
-		return ret;
-	}
-	std::string htmlAttributeEscape(const char* in, int inLen) {
-		string ret;
-		htmlAttributeEscape(in, inLen, ret);
-		return ret;
-	}
-	int parseQueryString(const char* in, int inLen, string& outBuffer, vector<tuple<int,int,int,int> >& outIndices) {
-		//XXX: dangerous (potentially exploitable) codepath; please audit
-		split spl(in, inLen, '&');
-		int ret = 0;
 
-		// split input string by &
-		while (spl.read()) {
-			const char* start = spl.value.data();
-			int len = spl.value.length();
-			if(len == 0) continue;
-			const char* end = start + len;
-			const char* equ = (const char*) memchr(start, '=', len);
-
-			// "=" not found; assume empty value
-			if (equ == NULL) {
-				int nS = outBuffer.length();
-				urlDecode(start, len, outBuffer);
-				int nE = outBuffer.length();
-				outIndices.push_back({nS, nE, -1, -1});
-			} else {
-				int nS = outBuffer.length();
-				urlDecode(start, equ - start, outBuffer);
-				int nE = outBuffer.length();
-				int vS = nE;
-				urlDecode(equ + 1, end - equ - 1, outBuffer);
-				int vE = outBuffer.length();
-				outIndices.push_back({nS, nE, vS, vE});
-			}
-			ret++;
-		}
-		return ret;
-	}
-	int htmlEscape(const char* in, int inLen, string& out) {
+	template<class StringType>
+	int htmlEscapeImpl(const char* in, int inLen, StringType& out) {
 		//XXX: dangerous (potentially exploitable) codepath; please audit
 		int sz = 0;
 		for (int i = 0; i < inLen; i++) {
@@ -205,7 +159,9 @@ namespace cppsp
 		}
 		return sz;
 	}
-	int htmlAttributeEscape(const char* in, int inLen, string& out) {
+
+	template<class StringType>
+	int htmlAttributeEscapeImpl(const char* in, int inLen, StringType& out) {
 		//XXX: dangerous (potentially exploitable) codepath; please audit
 		int last_i = 0;
 		int oldLen = out.length();
@@ -238,7 +194,8 @@ namespace cppsp
 		return out.length() - oldLen;
 	}
 
-	int jsEscape(const char* in_, int inLen, string& out) {
+	template<class StringType>
+	int jsEscapeImpl(const char* in_, int inLen, StringType& out) {
 		//XXX: dangerous (potentially exploitable) codepath; please audit
 		uint8_t* in = (uint8_t*) in_;
 		int sz = 0;
@@ -266,11 +223,62 @@ namespace cppsp
 		}
 		return sz;
 	}
-	std::string jsEscape(const char* in, int inLen) {
-		string ret;
-		jsEscape(in, inLen, ret);
+
+	template<class StringType>
+	int parseQueryStringImpl(const char* in, int inLen, StringType& outBuffer, vector<tuple<int,int,int,int> >& outIndices) {
+		//XXX: dangerous (potentially exploitable) codepath; please audit
+		split spl(in, inLen, '&');
+		int ret = 0;
+
+		// split input string by &
+		while (spl.read()) {
+			const char* start = spl.value.data();
+			int len = spl.value.length();
+			if(len == 0) continue;
+			const char* end = start + len;
+			const char* equ = (const char*) memchr(start, '=', len);
+
+			// "=" not found; assume empty value
+			if (equ == NULL) {
+				int nS = outBuffer.length();
+				urlDecode(start, len, outBuffer);
+				int nE = outBuffer.length();
+				outIndices.push_back({nS, nE, -1, -1});
+			} else {
+				int nS = outBuffer.length();
+				urlDecode(start, equ - start, outBuffer);
+				int nE = outBuffer.length();
+				int vS = nE;
+				urlDecode(equ + 1, end - equ - 1, outBuffer);
+				int vE = outBuffer.length();
+				outIndices.push_back({nS, nE, vS, vE});
+			}
+			ret++;
+		}
 		return ret;
 	}
+
+
+	// type-specific stubs
+	int urlDecode(const char* in, int inLen, string& out) { return urlDecodeImpl(in, inLen, out); }
+	int urlEncode(const char* in, int inLen, string& out) { return urlEncodeImpl(in, inLen, out); }
+	int htmlEscape(const char* in, int inLen, string& out) { return htmlEscapeImpl(in, inLen, out); }
+	int htmlAttributeEscape(const char* in, int inLen, string& out) { return htmlAttributeEscapeImpl(in, inLen, out); }
+	int jsEscape(const char* in, int inLen, string& out) { return jsEscapeImpl(in, inLen, out); }
+
+	int urlDecode(const char* in, int inLen, string_builder& out) { return urlDecodeImpl(in, inLen, out); }
+	int urlEncode(const char* in, int inLen, string_builder& out) { return urlEncodeImpl(in, inLen, out); }
+	int htmlEscape(const char* in, int inLen, string_builder& out) { return htmlEscapeImpl(in, inLen, out); }
+	int htmlAttributeEscape(const char* in, int inLen, string_builder& out) { return htmlAttributeEscapeImpl(in, inLen, out); }
+	int jsEscape(const char* in, int inLen, string_builder& out) { return jsEscapeImpl(in, inLen, out); }
+
+	int parseQueryString(const char* in, int inLen, string& outBuffer, vector<tuple<int,int,int,int> >& outIndices) {
+		return parseQueryStringImpl(in, inLen, outBuffer, outIndices);
+	}
+	int parseQueryString(const char* in, int inLen, string_builder& outBuffer, vector<tuple<int,int,int,int> >& outIndices) {
+		return parseQueryStringImpl(in, inLen, outBuffer, outIndices);
+	}
+	
 
 	int ci_compare(string_view s1, string_view s2) {
 		if (s1.length() > s2.length()) return 1;
@@ -451,5 +459,32 @@ namespace cppsp
 		*(c++) = '\0';
 		return int(c - s) - 1;
 	}
+	
+	std::string urlDecode(const char* in, int inLen) {
+		string ret;
+		urlDecode(in, inLen, ret);
+		return ret;
+	}
+	std::string urlEncode(const char* in, int inLen) {
+		string ret;
+		urlEncode(in, inLen, ret);
+		return ret;
+	}
+	std::string htmlEscape(const char* in, int inLen) {
+		string ret;
+		htmlEscape(in, inLen, ret);
+		return ret;
+	}
+	std::string htmlAttributeEscape(const char* in, int inLen) {
+		string ret;
+		htmlAttributeEscape(in, inLen, ret);
+		return ret;
+	}
+	std::string jsEscape(const char* in, int inLen) {
+		string ret;
+		jsEscape(in, inLen, ret);
+		return ret;
+	}
+
 }
 

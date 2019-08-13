@@ -22,6 +22,7 @@
 #ifndef STRINGUTILS_H_
 #define STRINGUTILS_H_
 #include <cpoll-ng/cpoll.H>
+#include <cpoll-ng/string_builder.H>
 #include <string>
 namespace cppsp
 {
@@ -33,31 +34,41 @@ namespace cppsp
 	}
 #endif
 
+	using std::string_view;
+
 	// url encode/escaping functions
 	int doURLDecode(const char* in, int inLen, char* out);
-	int urlDecode(const char* in, int inLen, string& out);
-	int urlEncode(const char* in, int inLen, string& out);
-	int htmlEscape(const char* in, int inLen, string& out);
-	int htmlAttributeEscape(const char* in, int inLen, string& out);
-	int jsEscape(const char* in_, int inLen, string& out);
+
+	int urlDecode(const char* in, int inLen, std::string& out);
+	int urlEncode(const char* in, int inLen, std::string& out);
+	int htmlEscape(const char* in, int inLen, std::string& out);
+	int htmlAttributeEscape(const char* in, int inLen, std::string& out);
+	int jsEscape(const char* in_, int inLen, std::string& out);
+
+	int urlDecode(const char* in, int inLen, CP::string_builder& out);
+	int urlEncode(const char* in, int inLen, CP::string_builder& out);
+	int htmlEscape(const char* in, int inLen, CP::string_builder& out);
+	int htmlAttributeEscape(const char* in, int inLen, CP::string_builder& out);
+	int jsEscape(const char* in_, int inLen, CP::string_builder& out);
 
 	inline int doURLDecode(const char* in, char* out) { return doURLDecode(in, strlen(in), out); }
-	inline int urlDecode(const char* in, string& out) { return urlDecode(in, strlen(in), out); }
-	inline int urlEncode(const char* in, string& out) { return urlEncode(in, strlen(in), out); }
-	inline int htmlEscape(const char* in, string& out) { return htmlEscape(in, strlen(in), out); }
-	inline int htmlAttributeEscape(const char* in, string& out) { return htmlAttributeEscape(in, strlen(in), out); }
-	inline int jsEscape(const char* in, string& out) { return jsEscape(in, strlen(in), out); }
+	template<class ST> inline int urlDecode(const char* in, ST& out) { return urlDecode(in, strlen(in), out); }
+	template<class ST> inline int urlEncode(const char* in, ST& out) { return urlEncode(in, strlen(in), out); }
+	template<class ST> inline int htmlEscape(const char* in, ST& out) { return htmlEscape(in, strlen(in), out); }
+	template<class ST> inline int htmlAttributeEscape(const char* in, ST& out) { return htmlAttributeEscape(in, strlen(in), out); }
+	template<class ST> inline int jsEscape(const char* in, ST& out) { return jsEscape(in, strlen(in), out); }
 
 	inline int doURLDecode(string_view in, char* out) { return doURLDecode(in.data(), in.length(), out); }
-	inline int urlDecode(string_view in, string& out) { return urlDecode(in.data(), in.length(), out); }
-	inline int urlEncode(string_view in, string& out) { return urlEncode(in.data(), in.length(), out); }
-	inline int htmlEscape(string_view in, string& out) { return htmlEscape(in.data(), in.length(), out); }
-	inline int htmlAttributeEscape(string_view in, string& out) { return htmlAttributeEscape(in.data(), in.length(), out); }
-	inline int jsEscape(string_view in, string& out) { return jsEscape(in.data(), in.length(), out); }
+	template<class ST> inline int urlDecode(string_view in, ST& out) { return urlDecode(in.data(), in.length(), out); }
+	template<class ST> inline int urlEncode(string_view in, ST& out) { return urlEncode(in.data(), in.length(), out); }
+	template<class ST> inline int htmlEscape(string_view in, ST& out) { return htmlEscape(in.data(), in.length(), out); }
+	template<class ST> inline int htmlAttributeEscape(string_view in, ST& out) { return htmlAttributeEscape(in.data(), in.length(), out); }
+	template<class ST> inline int jsEscape(string_view in, ST& out) { return jsEscape(in.data(), in.length(), out); }
 
-	int parseQueryString(const char* in, int inLen, string& outBuffer, vector<tuple<int,int,int,int> >& outIndices);
-	int ci_compare(string_view s1, string_view s2);
-	int rfctime2(const tm& time, string& out);
+	int parseQueryString(const char* in, int inLen, std::string& outBuffer, std::vector<std::tuple<int,int,int,int> >& outIndices);
+	int parseQueryString(const char* in, int inLen, CP::string_builder& outBuffer, std::vector<std::tuple<int,int,int,int> >& outIndices);
+	int ci_compare(std::string_view s1, std::string_view s2);
+	int rfctime2(const tm& time, std::string& out);
 	int rfctime(const tm& time, char* out);
 
 	std::string urlDecode(const char* in, int inLen);
