@@ -163,6 +163,12 @@ namespace cppsp {
 		uint8_t* scratch = nullptr;
 		int scratchSize = 0;
 
+		ConnectionHandlerInternal() {
+			handleException = [this](const exception& ex) {
+				defaultHandleException(ex);
+			};
+		}
+
 		uint8_t* scratchArea(int minSize) {
 			if(minSize > scratchSize) {
 				if(scratch != nullptr)
@@ -301,7 +307,7 @@ namespace cppsp {
 			} else
 				requestCompleted();
 		}
-		void handleException(exception& ex) {
+		void defaultHandleException(const exception& ex) {
 			response.buffer.clear();
 			response.status = "500 Server Error";
 			response.contentType = "text/html";
@@ -347,6 +353,10 @@ namespace cppsp {
 	void ConnectionHandler::finish(bool flushReponse) {
 		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;
 		th->finish(flushReponse);
+	}
+	void ConnectionHandler::defaultHandleException(const exception& ex) {
+		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;
+		th->defaultHandleException(ex);
 	}
 	void ConnectionHandler::abort() {
 		ConnectionHandlerInternal* th = (ConnectionHandlerInternal*) this;

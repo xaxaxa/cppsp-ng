@@ -8,11 +8,15 @@
 
 using namespace CP;
 
+namespace std {
+	class exception;
+};
 namespace cppsp {
 	using std::string_view;
 	using std::string;
 	using std::vector;
 	using std::pair;
+	using std::exception;
 
 	static constexpr int HANDLER_MEM_POOL = 1024;
 
@@ -119,6 +123,7 @@ namespace cppsp {
 		Socket socket;
 		Request request;
 		Response response;
+		function<void(const exception&)> handleException;
 
 		// called by Worker to start reading from a socket
 		void start(int clientfd);
@@ -140,6 +145,10 @@ namespace cppsp {
 		// flushReponse controls whether data in "response" should be
 		// written to the socket.
 		void finish(bool flushReponse = true);
+
+		// the function that handleException points to by default;
+		// takes over the connection and writes an error message response.
+		void defaultHandleException(const exception&);
 
 		// called by the user application's request handler to abort a connection
 		void abort();
