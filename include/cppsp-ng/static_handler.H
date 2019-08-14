@@ -55,6 +55,7 @@ namespace cppsp {
 		uint32_t maxCapacity = 1024;
 		uint32_t maxPurgePerCycle = 128;
 		uint32_t nLoaded = 0;
+		timespec currTime;
 
 		LoadedStaticFile* getFile(string_view file);
 		LoadedStaticFile* addFile(string_view file);
@@ -70,9 +71,10 @@ namespace cppsp {
 		// unmap or close the file and remove from the to-free list
 		void unload(LoadedStaticFile* file);
 
-		void doLoad(LoadedStaticFile* file);
+		exception* doLoad(LoadedStaticFile* file);
 		void doUnload(LoadedStaticFile* file);
 
+		void reloadIfStale(LoadedStaticFile* file);
 
 		// unload the least recently used file
 		void pop();

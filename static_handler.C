@@ -12,19 +12,29 @@ using namespace CP;
 namespace cppsp {
 	struct LoadedStaticFile {
 		// position in the to-free list
-		LoadedStaticFile* next;
-		LoadedStaticFile* prev;
-		StaticFileManager* manager;
+		LoadedStaticFile* next = nullptr;
+		LoadedStaticFile* prev = nullptr;
+		StaticFileManager* manager = nullptr;
 		string path;
 		string mimeType;
-		uint8_t* mapped;
-		int fd;
-		int length;
-		int refCount;
+		unique_ptr<exception> lastException = nullptr;
+		uint8_t* mapped = nullptr;
+		timespec lastModified = timespec();
+		timespec lastCheck = timespec();
+		int fd = -1;
+		int length = 0;
+		int refCount = 0;
 		bool loaded() {
 			return (mapped != nullptr) || fd >= 0;
 		}
 	};
+	static int tsCompare(struct timespec time1, struct timespec time2) {
+		if (time1.tv_sec < time2.tv_sec) return (-1); /* Less than. */
+		else if (time1.tv_sec > time2.tv_sec) return (1); /* Greater than. */
+		else if (time1.tv_nsec < time2.tv_nsec) return (-1); /* Less than. */
+		else if (time1.tv_nsec > time2.tv_nsec) return (1); /* Greater than. */
+		else return (0); /* Equal. */
+	}
 	struct FileRef {
 		LoadedStaticFile* file;
 
@@ -71,15 +81,7 @@ namespace cppsp {
 			// if we have the file mmap'd, we can use writev to send the
 			// headers and contents at once; otherwise use sendfile()
 			if(file->mapped) {
-				iov[0].iov_base = (void*) headers.data();
-				iov[0].iov_len = headers.length();
-				iov[1].iov_base = file->mapped;
-				iov[1].iov_len = file->length;
-				ch.socket.writevAll(iov, 2, [this](int r) {
-					this->~StaticFileHandler();
-					if(r <= 0) ch.abort();
-					else ch.finish(false);
-				});
+				doWriteVFile(headers);
 			} else {
 				ch.socket.sendAll(headers.data(), headers.length(), MSG_MORE,
 								[this](int r) {
@@ -91,6 +93,21 @@ namespace cppsp {
 					doSendFile();
 				});
 			}
+		}
+		void doWriteVFile(string_view headers) {
+			iov[0].iov_base = (void*) headers.data();
+			iov[0].iov_len = headers.length();
+			iov[1].iov_base = file->mapped;
+			iov[1].iov_len = file->length;
+			ch.socket.writevAll(iov, 2, [this](int r) {
+				uint32_t totalLen = iov[0].iov_len + iov[1].iov_len;
+				this->~StaticFileHandler();
+				if(r <= 0 || r < totalLen) {
+					fprintf(stderr, "writev failed: %d %s\n", r, strerror(errno));
+					ch.abort();
+				}
+				else ch.finish(false);
+			});
 		}
 		void doSendFile() {
 			ch.socket.sendFileFrom(file->fd, sendFileOffset, 1024*1024, [this](int r) {
@@ -130,6 +147,7 @@ namespace cppsp {
 				return defaultMime;
 			return (*it).second;
 		};
+		timerCB();
 	}
 
 	HandleRequestCB StaticFileManager::createHandler(string_view file) {
@@ -137,6 +155,7 @@ namespace cppsp {
 	}
 
 	void StaticFileManager::timerCB() {
+		clock_gettime(CLOCK_MONOTONIC, &currTime);
 		if(loadsCounter*targetCacheHitRatio <= requestsCounter) {
 			capacity -= capacity/8;
 			if(capacity < minCapacity)
@@ -156,8 +175,11 @@ namespace cppsp {
 		// the lambda retains a reference to file
 		auto handler = [ref = FileRef(file)]
 						(ConnectionHandler& ch) {
+			ref->manager->reloadIfStale(ref.file);
 			if(!ref->loaded()) {
-				ref->manager->loadAndEvict(ref.file);
+				if(ref->lastException == nullptr) ch.abort();
+				else ch.handleException(*ref->lastException);
+				return;
 			}
 			auto* h = ch.allocateHandlerState<StaticFileHandler>(ch, ref.file);
 			h->start();
@@ -219,7 +241,9 @@ namespace cppsp {
 		}
 	}
 	void StaticFileManager::load(LoadedStaticFile* file) {
-		doLoad(file);
+		file->lastCheck = currTime;
+		file->lastException.reset(doLoad(file));
+		if(file->lastException) return;
 		// put the file on the to-free list
 		nLoaded++;
 		file->prev = lastToFree;
@@ -234,13 +258,17 @@ namespace cppsp {
 		doUnload(file);
 		// remove the file from the to-free list
 		nLoaded--;
+
+		if(file->next == nullptr)
+			assert(file == lastToFree);
+		if(file->prev == nullptr)
+			assert(file == firstToFree);
+
 		if(file == firstToFree)
 			firstToFree = file->next;
 		if(file == lastToFree)
 			lastToFree = file->prev;
 
-		if(file->next == nullptr && file->prev == nullptr)
-			assert(false);
 		if(file->prev)
 			file->prev->next = file->next;
 		if(file->next)
@@ -251,28 +279,30 @@ namespace cppsp {
 			delete file;
 		}
 	}
-	void StaticFileManager::doLoad(LoadedStaticFile* f) {
+	exception* StaticFileManager::doLoad(LoadedStaticFile* f) {
 		string path = basePath;
 		path.append(f->path);
+
 		int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
-		if(fd < 0)
-			throw UNIXException(errno, path);
+		if(fd < 0) {
+			return new UNIXException(errno, path);
+		}
 
 		struct stat st;
 		if(fstat(fd, &st) < 0) {
 			close(fd);
-			throw UNIXException(errno, path);
+			return new UNIXException(errno, path);
 		}
 		if(!(S_ISREG(st.st_mode) || S_ISLNK(st.st_mode))) {
 			close(fd);
-			throw CPollException("Requested path is not a file", EISDIR);
+			return new CPollException("Requested path is not a file", EISDIR);
 		}
 		void* mapped = nullptr;
 		if(st.st_size <= maxMmapSize) {
 			mapped = mmap(nullptr, st.st_size, PROT_READ, MAP_SHARED, fd, 0);
 			close(fd);
 			if(mapped == nullptr) {
-				throw UNIXException(errno, string("mmap ") + path);
+				return new UNIXException(errno, string("mmap ") + path);
 			}
 			fd = -1;
 		}
@@ -281,10 +311,12 @@ namespace cppsp {
 		f->mapped = (uint8_t*) mapped;
 		f->fd = fd;
 		f->mimeType = mimeType(f->path);
+		f->lastModified = st.st_mtim;
 
 		// only increment the counter after the file is loaded because
 		// we don't want errors to count towards the load rate.
 		loadsCounter++;
+		return nullptr;
 	}
 	void StaticFileManager::doUnload(LoadedStaticFile* f) {
 		if(f->mapped)
@@ -293,6 +325,37 @@ namespace cppsp {
 			close(f->fd);
 		f->mapped = nullptr;
 		f->fd = -1;
+	}
+	// assumes f is loaded
+	void StaticFileManager::reloadIfStale(LoadedStaticFile* f) {
+		timespec tmp1 = currTime;
+		tmp1.tv_sec -= 2;
+		// if we already checked within the last 2 seconds then return
+		if (tsCompare(f->lastCheck, tmp1) > 0)
+			return;
+
+		if(!f->loaded()) {
+			load(f);
+			return;
+		}
+
+		// check if the file needs to be reloaded
+		f->lastCheck = currTime;
+		string path = basePath;
+		path.append(f->path);
+		struct stat st;
+		if(stat(path.c_str(), &st) < 0) {
+			f->lastException.reset(new UNIXException(errno, path));
+			unload(f);
+			return;
+		}
+
+		// if last-modified changed or size changed, reload
+		if((tsCompare(f->lastModified, st.st_mtim) != 0)
+			|| (f->length != st.st_size)) {
+			unload(f);
+			load(f);
+		}
 	}
 	void StaticFileManager::pop() {
 		LoadedStaticFile* toFree = firstToFree;
