@@ -151,14 +151,18 @@ namespace cppsp
 				payloadLen = pLen1;
 				break;
 		}
+		assert(maxFrameSize > 0 && maxFrameSize < (1<<30));
+		if(payloadLen > (uint64_t)maxFrameSize)
+			throw length_error("WebSocketParser: max websocket frame size exceeded");
+
 		currFrameSizeHint = minLen + payloadLen;
 		if(currFrameSizeHint > maxFrameSize)
 			throw length_error("WebSocketParser: max websocket frame size exceeded");
 		//printf("payloadLen = %lli\n", payloadLen);
-		if (len < int(minLen + payloadLen))
+		if (len < currFrameSizeHint)
 			return false;
 		char* payload = data + minLen;
-		out.data = {payload, payloadLen};
+		out.data = {payload, (size_t) payloadLen};
 		out.fin = h1->fin;
 		out.opcode = h1->opcode;
 		if (h1->mask) unmask((uint8_t*) payload, payloadLen,

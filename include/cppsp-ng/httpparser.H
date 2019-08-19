@@ -175,8 +175,10 @@ namespace cppsp
 					if(bufferProcessed == index) {
 						bufferProcessed = index + 2;
 
-						if(requestLineStart == -1)
+						if(requestLineStart == -1) {
 							malformed = true;
+							return true;
+						}
 
 						if(ci_equals(verb(), "get") || currContentLength == 0) {
 							return true;
@@ -192,6 +194,10 @@ namespace cppsp
 			} else { // READCONTENT
 			readContent:
 				int contentsRead = bufferEnd - bufferProcessed;
+				if(currContentLength < 0 || currContentLength > MAXREQUESTSIZE) {
+					malformed = true;
+					return true;
+				}
 				if(contentsRead >= currContentLength) {
 					contentsStart = bufferProcessed;
 					contentsEnd = bufferProcessed + currContentLength;
