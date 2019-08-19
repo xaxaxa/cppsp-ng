@@ -245,7 +245,6 @@ namespace cppsp {
 		}
 		void processRequest() {
 			response.reset();
-			response.keepAlive = request.keepAlive;
 			stringPool.clear();
 			if(parser.malformed) {
 				request.keepAlive = false;
@@ -256,6 +255,7 @@ namespace cppsp {
 				return;
 			}
 			copyRequest(parser, request);
+			response.keepAlive = request.keepAlive;
 			parseQueryString();
 			//fprintf(stderr, "processRequest\n");
 			//string path(parser.path());
